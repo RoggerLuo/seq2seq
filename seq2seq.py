@@ -115,6 +115,10 @@ def make_input_fn(
                 with open(output_filename) as foutput:
                     for in_line in finput:
                         out_line = foutput.readline()
+
+                        # 这里输入原始的输入和输出，整理成函数
+                        # 从离原始数据最近端开始
+                        # 接口的数据结构 为分割线
                         yield {
                             'input': input_process(in_line, vocab)[:input_max_length - 1] + [END_TOKEN],
                             'output': output_process(out_line, vocab)[:output_max_length - 1] + [END_TOKEN]
