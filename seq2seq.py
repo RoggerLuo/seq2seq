@@ -6,11 +6,17 @@ from tensorflow.contrib import layers
 
 import timeline
 
-
+from logging_hook import get_logging_hook
 GO_TOKEN = 0
 END_TOKEN = 1
 UNK_TOKEN = 2
 
+def load_vocab(filename):
+    vocab = {}
+    with open(filename) as f:
+        for idx, line in enumerate(f):
+            vocab[line.strip()] = idx
+    return vocab # 一个对象{key,value} value是idx
 
 def seq2seq(mode, features, labels, params):
     vocab_size = params['vocab_size']
@@ -139,33 +145,6 @@ def make_input_fn(
     return input_fn, feed_fn
 
 
-def load_vocab(filename):
-    vocab = {}
-    with open(filename) as f:
-        for idx, line in enumerate(f):
-            vocab[line.strip()] = idx
-    return vocab # 一个对象{key,value} value是idx
-
-
-def get_rev_vocab(vocab):
-    return {idx: key for key, idx in vocab.items()}
-
-# tensor的值是一个一维list
-def get_formatter(name_list, vocab): # 工厂函数
-    rev_vocab = get_rev_vocab(vocab)
-
-    def to_str(sequence): # tensor的值是一个一维list
-        tokens = [rev_vocab.get(x, "<UNK>") for x in sequence] # 如果没有x就UNK
-        return ' '.join(tokens)
-
-    def format(values): # dict of tag->tensor, dict就是js中的对象,tag是key，tensor是值
-        res = []
-        for name in name_list:
-            res.append("%s = %s" % (name, to_str(values[name])))
-        return '\n'.join(res)
-    return format # function, takes dict of tag->Tensor and returns a string
-
-
 def train_seq2seq(input_filename, output_filename, vocab_filename,model_dir):
     vocab = load_vocab(vocab_filename) 
     # 一个对象{key,value} value是idx
@@ -186,17 +165,9 @@ def train_seq2seq(input_filename, output_filename, vocab_filename,model_dir):
         vocab, params['input_max_length'], params['output_max_length'])
 
     # Make hooks to print examples of inputs/predictions.
-    name_list = ['input_0', 'output_0']
-    print_inputs = tf.train.LoggingTensorHook(
-        name_list, 
-        every_n_iter=100,
-        formatter=get_formatter(name_list, vocab) # 工厂函数，传入了 vocab
-    )
-
-    print_predictions = tf.train.LoggingTensorHook(
-        ['predictions', 'train_pred'], every_n_iter=100,
-        formatter=get_formatter(['predictions', 'train_pred'], vocab))
-
+    print_inputs = get_logging_hook(['input_0', 'output_0'],vocab)
+    print_predictions = get_logging_hook(['predictions', 'train_pred'],vocab)
+    
     timeline_hook = timeline.TimelineHook(model_dir, every_n_iter=100)
 
 
@@ -220,3 +191,34 @@ def main():
 if __name__ == "__main__":
     main()
 
+
+
+
+
+
+def get_rev_vocab(vocab):
+    return {idx: key for key, idx in vocab.items()}
+
+# tensor的值是一个一维list
+def get_formatter(name_list, vocab): # 工厂函数
+    rev_vocab = get_rev_vocab(vocab)
+
+    def to_str(sequence): # tensor的值是一个一维list
+        tokens = [rev_vocab.get(x, "<UNK>") for x in sequence] # 如果没有x就UNK
+        return ' '.join(tokens)
+
+    def format(values): # dict of tag->tensor, dict就是js中的对象,tag是key，tensor是值
+        res = []
+        for name in name_list:
+            res.append("%s = %s" % (name, to_str(values[name])))
+        return '\n'.join(res)
+    return format # function, takes dict of tag->Tensor and returns a string
+
+    print_inputs = tf.train.LoggingTensorHook(
+        name_list, 
+        every_n_iter=100,
+        formatter=get_formatter(name_list, vocab) # 工厂函数，传入了 vocab
+    )
+    print_predictions = tf.train.LoggingTensorHook(
+        ['predictions', 'train_pred'], every_n_iter=100,
+        formatter=get_formatter(['predictions', 'train_pred'], vocab))
