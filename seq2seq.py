@@ -91,15 +91,14 @@ def seq2seq(mode, features, labels, params):
         train_op=train_op
     )
 
-
-def tokenize_and_map(line, vocab):
-    return [vocab.get(token, UNK_TOKEN) for token in line.split(' ')]
-
-
+def str2idx(string,vocab):
+    string = string.split(' ') # 为了适应demo, 之后注释这一句
+    return [vocab.get(token, UNK_TOKEN) for token in string]
+def cutMaxLength():
+    
 def make_input_fn(
         batch_size, input_filename, output_filename, vocab,
-        input_max_length, output_max_length,
-        input_process=tokenize_and_map, output_process=tokenize_and_map):
+        input_max_length, output_max_length):
     
     # 创建placeholder 然后切片放进打印机打印
     def input_fn():
@@ -120,8 +119,8 @@ def make_input_fn(
                         # 从离原始数据最近端开始
                         # 接口的数据结构 为分割线
                         yield {
-                            'input': input_process(in_line, vocab)[:input_max_length - 1] + [END_TOKEN],
-                            'output': output_process(out_line, vocab)[:output_max_length - 1] + [END_TOKEN]
+                            'input': str2idx(in_line, vocab)[:input_max_length - 1] + [END_TOKEN],
+                            'output': str2idx(out_line, vocab)[:output_max_length - 1] + [END_TOKEN]
                         }
 
     sample_me = sampler()
