@@ -16,13 +16,12 @@ __init__(
 
 	
 Args:
-	
-	tensors: tensor的名字，可循环的dict that maps string-valued tags to tensors/tensor names, or iterable of tensors/tensor names.
-	
-	every_n_iter: int, print the values of tensors once every N local steps taken on the current worker.
-	every_n_secs: int or float, print the values of tensors once every N seconds. Exactly one of every_n_iter and every_n_secs should be provided.
-	at_end: bool specifying whether to print the values of tensors at the end of the run.
-	formatter: function, takes dict of tag->Tensor and returns a string. If None uses default printing all tensors.
+
+- tensors: 一个list，里面是tensor的名字.
+- every_n_iter: 很明显了.
+- every_n_secs: iter和secs必须选一个.
+- at_end: bool specifying whether to print the values of tensors at the end of the run.
+- formatter: function, 传入{name:tensor}的dict，返回一个字符串. 
 
 SessionRunHook还有那些实例？我也不知道  
 

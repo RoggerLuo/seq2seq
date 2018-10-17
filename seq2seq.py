@@ -100,16 +100,14 @@ def make_input_fn(
         batch_size, input_filename, output_filename, vocab,
         input_max_length, output_max_length,
         input_process=tokenize_and_map, output_process=tokenize_and_map):
-
+    
+    # 创建placeholder 然后切片放进打印机打印
     def input_fn():
         inp = tf.placeholder(tf.int64, shape=[None, None], name='input')
-        output = tf.placeholder(tf.int64, shape=[None, None], name='output')
-        tf.identity(inp[0], 'input_0') # identity:赋值op
+        output = tf.placeholder(tf.int64, shape=[None, None], name='output') # output 指label吗
+        tf.identity(inp[0], 'input_0') # 好像内存中多了一个叫做input_0的op，然后到时候就可以根据名字调用
         tf.identity(output[0], 'output_0')
-        return {
-            'input': inp,
-            'output': output,
-        }, None
+        return {'input': inp,'output': output}, None # 这个None是怎么回事
 
     def sampler():
         while True:
@@ -123,24 +121,27 @@ def make_input_fn(
                         }
 
     sample_me = sampler()
-
-    def feed_fn():
+    
+    """
+    FeedFnHook只做了一件事
+    继承SessionRunHook,然后实现一个方法：
+    def before_run(self, run_context):
+        return session_run_hook.SessionRunArgs(fetches=None, feed_dict=self.feed_fn()) # 注意这里
+    """
+    def feed_fn(): # 每次sess.run都会重新执行feed_fn()
         inputs, outputs = [], []
         input_length, output_length = 0, 0
         for i in range(batch_size):
             rec = next(sample_me)
             inputs.append(rec['input'])
             outputs.append(rec['output'])
-            input_length = max(input_length, len(inputs[-1]))
-            output_length = max(output_length, len(outputs[-1]))
+            input_length = max(input_length, len(inputs[-1])) # inputs[-1]，inputs的最后一个，就是刚才append上的那一个 
+            output_length = max(output_length, len(outputs[-1])) # 取batch中的最长值
         # Pad me right with </S> token.
         for i in range(batch_size):
-            inputs[i] += [END_TOKEN] * (input_length - len(inputs[i]))
+            inputs[i] += [END_TOKEN] * (input_length - len(inputs[i])) # 长度不够的地方填充end_token
             outputs[i] += [END_TOKEN] * (output_length - len(outputs[i]))
-        return {
-            'input:0': inputs,
-            'output:0': outputs
-        }
+        return {'input:0': inputs,'output:0': outputs} # return dict of tensor (feed_dict)
 
     return input_fn, feed_fn
 
@@ -165,11 +166,9 @@ def train_seq2seq(input_filename, output_filename, vocab_filename,model_dir):
         vocab, params['input_max_length'], params['output_max_length'])
 
     # Make hooks to print examples of inputs/predictions.
-    print_inputs = get_logging_hook(['input_0', 'output_0'],vocab)
-    print_predictions = get_logging_hook(['predictions', 'train_pred'],vocab)
-    
+    print_inputs = get_logging_hook(['input_0', 'output_0'],vocab) 
+    print_predictions = get_logging_hook(['predictions', 'train_pred'],vocab) # predictions和train_pred是啥 不一样吗
     timeline_hook = timeline.TimelineHook(model_dir, every_n_iter=100)
-
 
     est = tf.estimator.Estimator(
         model_fn=seq2seq,
@@ -178,9 +177,9 @@ def train_seq2seq(input_filename, output_filename, vocab_filename,model_dir):
 
     est.train(
         input_fn=input_fn,
-        hooks=[tf.train.FeedFnHook(feed_fn), print_inputs, print_predictions,
-               timeline_hook],
-        steps=10000)
+        hooks=[tf.train.FeedFnHook(feed_fn), print_inputs, print_predictions,timeline_hook], # 4个hook
+        steps=10000
+    )
 
 
 def main():
@@ -191,34 +190,3 @@ def main():
 if __name__ == "__main__":
     main()
 
-
-
-
-
-
-def get_rev_vocab(vocab):
-    return {idx: key for key, idx in vocab.items()}
-
-# tensor的值是一个一维list
-def get_formatter(name_list, vocab): # 工厂函数
-    rev_vocab = get_rev_vocab(vocab)
-
-    def to_str(sequence): # tensor的值是一个一维list
-        tokens = [rev_vocab.get(x, "<UNK>") for x in sequence] # 如果没有x就UNK
-        return ' '.join(tokens)
-
-    def format(values): # dict of tag->tensor, dict就是js中的对象,tag是key，tensor是值
-        res = []
-        for name in name_list:
-            res.append("%s = %s" % (name, to_str(values[name])))
-        return '\n'.join(res)
-    return format # function, takes dict of tag->Tensor and returns a string
-
-    print_inputs = tf.train.LoggingTensorHook(
-        name_list, 
-        every_n_iter=100,
-        formatter=get_formatter(name_list, vocab) # 工厂函数，传入了 vocab
-    )
-    print_predictions = tf.train.LoggingTensorHook(
-        ['predictions', 'train_pred'], every_n_iter=100,
-        formatter=get_formatter(['predictions', 'train_pred'], vocab))
