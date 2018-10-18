@@ -94,8 +94,10 @@ def seq2seq(mode, features, labels, params):
 def str2idx(string,vocab):
     string = string.split(' ') # 为了适应demo, 之后注释这一句
     return [vocab.get(token, UNK_TOKEN) for token in string]
-def cutMaxLength():
-    
+
+#def cutMaxLength(string,max_length,vocab):
+#    str2idx(string, vocab)[:max_length - 1] + [END_TOKEN]
+
 def make_input_fn(
         batch_size, input_filename, output_filename, vocab,
         input_max_length, output_max_length):
