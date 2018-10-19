@@ -7,9 +7,14 @@ from tensorflow.contrib import layers
 import timeline
 
 from logging_hook import get_logging_hook
+import training_data as t_data
+import config
+
 GO_TOKEN = 0
 END_TOKEN = 1
 UNK_TOKEN = 2
+
+input_max_length,output_max_length = config.get_max()
 
 def load_vocab(filename):
     vocab = {}
@@ -22,8 +27,8 @@ def seq2seq(mode, features, labels, params):
     vocab_size = params['vocab_size']
     embed_dim = params['embed_dim']
     num_units = params['num_units']
-    input_max_length = params['input_max_length']
-    output_max_length = params['output_max_length']
+    # input_max_length = params['input_max_length']
+    # output_max_length = params['output_max_length']
 
     inp = features['input']
     output = features['output']
@@ -95,61 +100,6 @@ def str2idx(string,vocab):
     string = string.split(' ') # 为了适应demo, 之后注释这一句
     return [vocab.get(token, UNK_TOKEN) for token in string]
 
-#def cutMaxLength(string,max_length,vocab):
-#    str2idx(string, vocab)[:max_length - 1] + [END_TOKEN]
-
-def make_input_fn(
-        batch_size, input_filename, output_filename, vocab,
-        input_max_length, output_max_length):
-    
-    # 创建placeholder 然后切片放进打印机打印
-    def input_fn():
-        inp = tf.placeholder(tf.int64, shape=[None, None], name='input')
-        output = tf.placeholder(tf.int64, shape=[None, None], name='output') # output 指label吗
-        tf.identity(inp[0], 'input_0') # 好像内存中多了一个叫做input_0的op，然后到时候就可以根据名字调用
-        tf.identity(output[0], 'output_0')
-        return {'input': inp,'output': output}, None # 这个None是怎么回事
-
-    def sampler():
-        while True:
-            with open(input_filename) as finput:
-                with open(output_filename) as foutput:
-                    for in_line in finput:
-                        out_line = foutput.readline()
-
-                        # 这里输入原始的输入和输出，整理成函数
-                        # 从离原始数据最近端开始
-                        # 接口的数据结构 为分割线
-                        yield {
-                            'input': str2idx(in_line, vocab)[:input_max_length - 1] + [END_TOKEN],
-                            'output': str2idx(out_line, vocab)[:output_max_length - 1] + [END_TOKEN]
-                        }
-
-    sample_me = sampler()
-    
-    """
-    FeedFnHook只做了一件事
-    继承SessionRunHook,然后实现一个方法：
-    def before_run(self, run_context):
-        return session_run_hook.SessionRunArgs(fetches=None, feed_dict=self.feed_fn()) # 注意这里
-    """
-    def feed_fn(): # 每次sess.run都会重新执行feed_fn()
-        inputs, outputs = [], []
-        input_length, output_length = 0, 0
-        for i in range(batch_size):
-            rec = next(sample_me)
-            inputs.append(rec['input'])
-            outputs.append(rec['output'])
-            input_length = max(input_length, len(inputs[-1])) # inputs[-1]，inputs的最后一个，就是刚才append上的那一个 
-            output_length = max(output_length, len(outputs[-1])) # 取batch中的最长值
-        # Pad me right with </S> token.
-        for i in range(batch_size):
-            inputs[i] += [END_TOKEN] * (input_length - len(inputs[i])) # 长度不够的地方填充end_token
-            outputs[i] += [END_TOKEN] * (output_length - len(outputs[i]))
-        return {'input:0': inputs,'output:0': outputs} # return dict of tensor (feed_dict)
-
-    return input_fn, feed_fn
-
 
 def train_seq2seq(input_filename, output_filename, vocab_filename,model_dir):
     vocab = load_vocab(vocab_filename) 
@@ -158,18 +108,10 @@ def train_seq2seq(input_filename, output_filename, vocab_filename,model_dir):
     params = {
         'vocab_size': len(vocab),
         'batch_size': 32,
-        'input_max_length': 30,
-        'output_max_length': 30,
         'embed_dim': 100, # embed_dim和num_units可以不同？
         'num_units': 256
-    }
-
-    input_fn, feed_fn = make_input_fn(
-        params['batch_size'],
-        input_filename,
-        output_filename,
-        vocab, params['input_max_length'], params['output_max_length'])
-
+    }    
+    
     # Make hooks to print examples of inputs/predictions.
     print_inputs = get_logging_hook(['input_0', 'output_0'],vocab) 
     print_predictions = get_logging_hook(['predictions', 'train_pred'],vocab) # predictions和train_pred是啥 不一样吗
@@ -181,8 +123,8 @@ def train_seq2seq(input_filename, output_filename, vocab_filename,model_dir):
         params=params)
 
     est.train(
-        input_fn=input_fn,
-        hooks=[tf.train.FeedFnHook(feed_fn), print_inputs, print_predictions,timeline_hook], # 4个hook
+        input_fn=t_data.input_fn,
+        hooks=[tf.train.FeedFnHook(t_data.get_feed_fn(vocab)), print_inputs, print_predictions,timeline_hook], # 4个hook
         steps=10000
     )
 
