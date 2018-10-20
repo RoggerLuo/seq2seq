@@ -1,4 +1,3 @@
-import logging
 
 import numpy as np
 import tensorflow as tf
@@ -96,44 +95,4 @@ def seq2seq(mode, features, labels, params):
         train_op=train_op
     )
 
-def str2idx(string,vocab):
-    string = string.split(' ') # 为了适应demo, 之后注释这一句
-    return [vocab.get(token, UNK_TOKEN) for token in string]
-
-
-def train_seq2seq(input_filename, output_filename, vocab_filename,model_dir):
-    vocab = load_vocab(vocab_filename) 
-    # 一个对象{key,value} value是idx
-    # 有start end unknown3个token
-    params = {
-        'vocab_size': len(vocab),
-        'batch_size': 32,
-        'embed_dim': 100, # embed_dim和num_units可以不同？
-        'num_units': 256
-    }    
-    
-    # Make hooks to print examples of inputs/predictions.
-    print_inputs = get_logging_hook(['input_0', 'output_0'],vocab) 
-    print_predictions = get_logging_hook(['predictions', 'train_pred'],vocab) # predictions和train_pred是啥 不一样吗
-    timeline_hook = timeline.TimelineHook(model_dir, every_n_iter=100)
-
-    est = tf.estimator.Estimator(
-        model_fn=seq2seq,
-        model_dir=model_dir, 
-        params=params)
-
-    est.train(
-        input_fn=t_data.input_fn,
-        hooks=[tf.train.FeedFnHook(t_data.get_feed_fn(vocab)), print_inputs, print_predictions,timeline_hook], # 4个hook
-        steps=10000
-    )
-
-
-def main():
-    tf.logging._logger.setLevel(logging.INFO)
-    train_seq2seq('input', 'output', 'vocab', 'model/seq2seq')
-
-
-if __name__ == "__main__":
-    main()
 
