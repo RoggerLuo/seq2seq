@@ -32,10 +32,17 @@ def seq2seq(mode, features, labels, params):
     inp = features['input']
     output = features['output']
     batch_size = tf.shape(inp)[0]
+
+    # 目的是为了给output的每一个batch_size前面加上zero，即go_token
     start_tokens = tf.zeros([batch_size], dtype=tf.int64)
     train_output = tf.concat([tf.expand_dims(start_tokens, 1), output], 1)
-    input_lengths = tf.reduce_sum(tf.to_int32(tf.not_equal(inp, 1)), 1)
+    
+
+    # 把不等于1的idx的个数 数出来
+    # input_lengths = tf.reduce_sum(tf.to_int32(tf.not_equal(inp, 1)), 1) # 不是attention机制，就用不到
+    # 用来告诉train要得出多少个结果， 因为终止符不需要机器生成？
     output_lengths = tf.reduce_sum(tf.to_int32(tf.not_equal(train_output, 1)), 1)
+    
     input_embed = layers.embed_sequence(
         inp, vocab_size=vocab_size, embed_dim=embed_dim, scope='embed')
     output_embed = layers.embed_sequence(
@@ -55,20 +62,25 @@ def seq2seq(mode, features, labels, params):
 
     def decode(helper, scope, reuse=None):
         with tf.variable_scope(scope, reuse=reuse):
-            attention_mechanism = tf.contrib.seq2seq.BahdanauAttention(
-                num_units=num_units, memory=encoder_outputs,
-                memory_sequence_length=input_lengths)
+            # attention_mechanism = tf.contrib.seq2seq.BahdanauAttention(
+            #     num_units=num_units, memory=encoder_outputs,
+            #     memory_sequence_length=input_lengths)
             cell = tf.contrib.rnn.GRUCell(num_units=num_units)
-            attn_cell = tf.contrib.seq2seq.AttentionWrapper(
-                cell, attention_mechanism, attention_layer_size=num_units / 2)
-            out_cell = tf.contrib.rnn.OutputProjectionWrapper(
-                attn_cell, vocab_size, reuse=reuse
+            # attn_cell = tf.contrib.seq2seq.AttentionWrapper(
+            #     cell, attention_mechanism, attention_layer_size=num_units / 2)
+            # out_cell = tf.contrib.rnn.OutputProjectionWrapper(
+            #     attn_cell, vocab_size, reuse=reuse
+            # )
+            out_cell = tf.contrib.rnn.OutputProjectionWrapper( # 这个是干嘛用的
+                cell, vocab_size, reuse=reuse
             )
+
             decoder = tf.contrib.seq2seq.BasicDecoder(
                 cell=out_cell, helper=helper,
-                initial_state=out_cell.zero_state(
-                    dtype=tf.float32, batch_size=batch_size))
-                #initial_state=encoder_final_state)
+                # initial_state=out_cell.zero_state( # 使用attention的时候，就要使用zero作为 initial_state???
+                #     dtype=tf.float32, batch_size=batch_size))
+                initial_state=encoder_final_state)
+            
             outputs = tf.contrib.seq2seq.dynamic_decode(
                 decoder=decoder, output_time_major=False,
                 impute_finished=True, maximum_iterations=output_max_length
