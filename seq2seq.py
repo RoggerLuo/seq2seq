@@ -34,8 +34,8 @@ def seq2seq(mode, features, labels, params):
     batch_size = tf.shape(inp)[0]
 
     # 目的是为了给output的每一个batch_size前面加上zero，即go_token
-    start_tokens = tf.zeros([batch_size], dtype=tf.int64)
-    train_output = tf.concat([tf.expand_dims(start_tokens, 1), output], 1)
+    start_tokens = tf.zeros([batch_size], dtype=tf.int64) # e.g. shape (2,1)
+    train_output = tf.concat([tf.expand_dims(start_tokens, 1), output], 1) # e.g. shape (2, 1 + x )
     
 
     # 把不等于1的idx的个数 数出来
@@ -57,8 +57,7 @@ def seq2seq(mode, features, labels, params):
     # train_helper = tf.contrib.seq2seq.ScheduledEmbeddingTrainingHelper(
     #     output_embed, output_lengths, embeddings, 0.3
     # )
-    pred_helper = tf.contrib.seq2seq.GreedyEmbeddingHelper(
-        embeddings, start_tokens=tf.to_int32(start_tokens), end_token=1)
+    pred_helper = tf.contrib.seq2seq.GreedyEmbeddingHelper(embeddings, start_tokens=tf.to_int32(start_tokens), end_token=1)
 
     def decode(helper, scope, reuse=None):
         with tf.variable_scope(scope, reuse=reuse):
@@ -79,27 +78,34 @@ def seq2seq(mode, features, labels, params):
                 cell=out_cell, helper=helper,
                 # initial_state=out_cell.zero_state( # 使用attention的时候，就要使用zero作为 initial_state???
                 #     dtype=tf.float32, batch_size=batch_size))
-                initial_state=encoder_final_state)
+                initial_state=encoder_final_state
+            )
             
             outputs = tf.contrib.seq2seq.dynamic_decode(
-                decoder=decoder, output_time_major=False,
-                impute_finished=True, maximum_iterations=output_max_length
+                decoder=decoder, 
+                output_time_major=False,
+                impute_finished=True, 
+                maximum_iterations=output_max_length
             )
             return outputs[0]
+
     train_outputs = decode(train_helper, 'decode')
     pred_outputs = decode(pred_helper, 'decode', reuse=True)
 
     tf.identity(train_outputs.sample_id[0], name='train_pred')
     weights = tf.to_float(tf.not_equal(train_output[:, :-1], 1))
-    loss = tf.contrib.seq2seq.sequence_loss(
-        train_outputs.rnn_output, output, weights=weights)
+    
+    loss = tf.contrib.seq2seq.sequence_loss(train_outputs.rnn_output, output, weights=weights)
+    
     train_op = layers.optimize_loss(
         loss, tf.train.get_global_step(),
         optimizer=params.get('optimizer', 'Adam'),
         learning_rate=params.get('learning_rate', 0.001),
-        summaries=['loss', 'learning_rate'])
+        summaries=['loss', 'learning_rate']
+    )
 
     tf.identity(pred_outputs.sample_id[0], name='predictions')
+
     return tf.estimator.EstimatorSpec(
         mode=mode,
         predictions=pred_outputs.sample_id,
