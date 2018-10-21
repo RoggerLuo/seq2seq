@@ -36,6 +36,7 @@ def seq2seq(mode, features, labels, params):
     # 目的是为了给output的每一个batch_size前面加上zero，即go_token
     start_tokens = tf.zeros([batch_size], dtype=tf.int64) # e.g. shape (2,1)
     train_output = tf.concat([tf.expand_dims(start_tokens, 1), output], 1) # e.g. shape (2, 1 + x )
+    # train_output = output
     
 
     # 把不等于1的idx的个数 数出来
@@ -43,10 +44,8 @@ def seq2seq(mode, features, labels, params):
     # 用来告诉train要得出多少个结果， 因为终止符不需要机器生成？
     output_lengths = tf.reduce_sum(tf.to_int32(tf.not_equal(train_output, 1)), 1)
     
-    input_embed = layers.embed_sequence(
-        inp, vocab_size=vocab_size, embed_dim=embed_dim, scope='embed')
-    output_embed = layers.embed_sequence(
-        train_output, vocab_size=vocab_size, embed_dim=embed_dim, scope='embed', reuse=True)
+    input_embed = layers.embed_sequence(inp, vocab_size=vocab_size, embed_dim=embed_dim, scope='embed')
+    output_embed = layers.embed_sequence(train_output, vocab_size=vocab_size, embed_dim=embed_dim, scope='embed', reuse=True)
     with tf.variable_scope('embed', reuse=True):
         embeddings = tf.get_variable('embeddings')
 

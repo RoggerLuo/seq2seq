@@ -1,12 +1,15 @@
 import numpy as np
 import tensorflow as tf
 import config
+import pkl
+
 GO_TOKEN = 0
 END_TOKEN = 1
 UNK_TOKEN = 2
 
 input_max_length,output_max_length = config.get_max()
 batch_size = config.get_size()
+data_list = pkl.read('./corpus.pkl')
 def input_fn():
     # 创建placeholder 然后切片放进打印机打印
     inp = tf.placeholder(tf.int64, shape=[None, None], name='input')
@@ -25,22 +28,34 @@ def get_feed_fn(vocab):
         # 每隔两个词就当一成一个新的sample，一句话可以有10个sample # 文字生成器
         # 还是一篇文章只用一次?
     def str2idx(string):
-        string = string.split(' ') # 为了适应demo, 之后注释这一句
+        # string = string.split(' ') # 为了适应demo, 之后注释这一句
         return [vocab.get(token, UNK_TOKEN) for token in string]
 
     def sampler():
-        while True:
-            with open(input_filename) as finput:
-                with open(output_filename) as foutput:
-                    for in_line in finput:
-                        out_line = foutput.readline()
-                        # 这里输入原始的输入和输出，整理成函数
-                        # 从离原始数据最近端开始
-                        # 接口的数据结构 为分割线
-                        yield {
-                            'input': str2idx(in_line)[:input_max_length - 1] + [END_TOKEN],
-                            'output': str2idx(out_line)[:output_max_length - 1] + [END_TOKEN]
-                        }
+        for item in data_list:
+            if len(item) < 5:
+                continue
+            input_ = str2idx(item)[:input_max_length - 1] + [END_TOKEN]
+            # output_ = str2idx(item)[:output_max_length - 1] + [END_TOKEN]
+            # print('np.array(input_).shape:')
+            # print(np.array(input_).shape)
+            yield {
+                'input': input_,
+                'output': input_
+            }
+        # while True:
+        #     with open(input_filename) as finput:
+        #         with open(output_filename) as foutput:
+        #             for in_line in finput:
+        #                 out_line = foutput.readline()
+        #                 # 这里输入原始的输入和输出，整理成函数
+        #                 # 从离原始数据最近端开始
+        #                 # 接口的数据结构 为分割线
+                        
+        #                 yield {
+        #                     'input': str2idx(in_line)[:input_max_length - 1] + [END_TOKEN],
+        #                     'output': str2idx(out_line)[:output_max_length - 1] + [END_TOKEN]
+        #                 }
     sample_me = sampler() # 生成idx的输入，并且切分好
     # return sample_me
     """
@@ -65,5 +80,6 @@ def get_feed_fn(vocab):
             # 长度不够的地方填充end_token
             inputs[i] += [END_TOKEN] * (input_length - len(inputs[i])) # [7] * 5 = [7,7,7,7,7]
             outputs[i] += [END_TOKEN] * (output_length - len(outputs[i])) # [7,7,7,7,7] + [1,2,3] = [7 7 7 7 7 1 2 3]
+
         return {'input:0': inputs,'output:0': outputs} # return dict of tensor (feed_dict)
     return feed_fn
