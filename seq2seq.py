@@ -14,7 +14,7 @@ END_TOKEN = 1
 UNK_TOKEN = 2
 
 input_max_length,output_max_length = config.get_max()
-
+use_attention = True
 def load_vocab(filename):
     vocab = {}
     with open(filename) as f:
@@ -40,7 +40,7 @@ def seq2seq(mode, features, labels, params):
     
 
     # 把不等于1的idx的个数 数出来
-    # input_lengths = tf.reduce_sum(tf.to_int32(tf.not_equal(inp, 1)), 1) # 不是attention机制，就用不到
+    input_lengths = tf.reduce_sum(tf.to_int32(tf.not_equal(inp, 1)), 1) # 不是attention机制，就用不到
     # 用来告诉train要得出多少个结果， 因为终止符不需要机器生成？
     output_lengths = tf.reduce_sum(tf.to_int32(tf.not_equal(train_output, 1)), 1)
     
@@ -60,25 +60,33 @@ def seq2seq(mode, features, labels, params):
 
     def decode(helper, scope, reuse=None):
         with tf.variable_scope(scope, reuse=reuse):
-            # attention_mechanism = tf.contrib.seq2seq.BahdanauAttention(
-            #     num_units=num_units, memory=encoder_outputs,
-            #     memory_sequence_length=input_lengths)
             cell = tf.contrib.rnn.GRUCell(num_units=num_units)
-            # attn_cell = tf.contrib.seq2seq.AttentionWrapper(
-            #     cell, attention_mechanism, attention_layer_size=num_units / 2)
-            # out_cell = tf.contrib.rnn.OutputProjectionWrapper(
-            #     attn_cell, vocab_size, reuse=reuse
-            # )
+
+            if use_attention == True:
+                attention_mechanism = tf.contrib.seq2seq.BahdanauAttention(
+                    num_units=num_units, memory=encoder_outputs,memory_sequence_length=input_lengths)
+                attn_cell = tf.contrib.seq2seq.AttentionWrapper(cell, attention_mechanism, attention_layer_size=num_units / 2)
+                cell = tf.contrib.rnn.OutputProjectionWrapper(
+                    attn_cell, vocab_size, reuse=reuse
+                )
+            
             out_cell = tf.contrib.rnn.OutputProjectionWrapper( # 这个是干嘛用的
                 cell, vocab_size, reuse=reuse
             )
-
-            decoder = tf.contrib.seq2seq.BasicDecoder(
-                cell=out_cell, helper=helper,
-                # initial_state=out_cell.zero_state( # 使用attention的时候，就要使用zero作为 initial_state???
-                #     dtype=tf.float32, batch_size=batch_size))
-                initial_state=encoder_final_state
-            )
+            
+            if use_attention == True:
+                decoder = tf.contrib.seq2seq.BasicDecoder(
+                    cell=out_cell, helper=helper,
+                    initial_state=out_cell.zero_state( # 使用attention的时候，就要使用zero作为 initial_state???
+                        dtype=tf.float32, batch_size=batch_size))
+                    # initial_state=encoder_final_state            
+            else:
+                decoder = tf.contrib.seq2seq.BasicDecoder(
+                    cell=out_cell, helper=helper,
+                    # initial_state=out_cell.zero_state( # 使用attention的时候，就要使用zero作为 initial_state???
+                    #     dtype=tf.float32, batch_size=batch_size))
+                    initial_state=encoder_final_state
+                )
             
             outputs = tf.contrib.seq2seq.dynamic_decode(
                 decoder=decoder, 

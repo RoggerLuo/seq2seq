@@ -35,8 +35,7 @@ def get_feed_fn(vocab):
         for item in data_list:
             if len(item) < 5:
                 continue
-            input_ = str2idx(item)[:input_max_length - 1] + [END_TOKEN]
-            # 如果结尾出现了两个 end_token就会出问题，可能是因为它是以end_token来判断input是否结束的
+            input_ = str2idx(item)[:input_max_length - 1] + [END_TOKEN] # 如果结尾出现了两个 end_token就会出问题，可能是因为它是以end_token来判断input是否结束的
             yield {
                 'input': input_,
                 'output': input_
