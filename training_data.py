@@ -36,26 +36,37 @@ def get_feed_fn(vocab):
             if len(item) < 5:
                 continue
             input_ = str2idx(item)[:input_max_length - 1] + [END_TOKEN]
-            # output_ = str2idx(item)[:output_max_length - 1] + [END_TOKEN]
-            # print('np.array(input_).shape:')
-            # print(np.array(input_).shape)
+            # 如果结尾出现了两个 end_token就会出问题，可能是因为它是以end_token来判断input是否结束的
             yield {
                 'input': input_,
                 'output': input_
             }
-        # while True:
-        #     with open(input_filename) as finput:
-        #         with open(output_filename) as foutput:
-        #             for in_line in finput:
-        #                 out_line = foutput.readline()
-        #                 # 这里输入原始的输入和输出，整理成函数
-        #                 # 从离原始数据最近端开始
-        #                 # 接口的数据结构 为分割线
-                        
-        #                 yield {
-        #                     'input': str2idx(in_line)[:input_max_length - 1] + [END_TOKEN],
-        #                     'output': str2idx(out_line)[:output_max_length - 1] + [END_TOKEN]
-        #                 }
+
+    def sampler_origin():
+
+        while True:
+            with open(input_filename) as finput:
+                with open(output_filename) as foutput:
+                    for in_line in finput:
+                        out_line = foutput.readline()
+                        # 这里输入原始的输入和输出，整理成函数
+                        # 从离原始数据最近端开始
+                        # 接口的数据结构 为分割线
+
+                        input_ = str2idx(in_line)[:input_max_length - 1] + [END_TOKEN]
+                        output_ = str2idx(out_line)[:output_max_length - 1] + [END_TOKEN]
+                        """
+                        print(np.array(input_).shape)
+                        print(input_)
+                        print(np.array(output_).shape)
+                        print(output_)
+                        (11,)
+                        [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1]
+                        """
+                        yield {
+                            'input': input_,
+                            'output': output_
+                        }
     sample_me = sampler() # 生成idx的输入，并且切分好
     # return sample_me
     """
